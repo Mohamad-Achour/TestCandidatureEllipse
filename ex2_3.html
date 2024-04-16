@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Carte des stations</title>
+    <!-- Inclure Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <!-- Inclure Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        #map {
+            height: 600px;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="filtres">
+    <!-- Filtrer par disponibilité -->
+    <label for="disponibilite">Disponibilité :</label>
+    <select id="disponibilite">
+        <option value="tous">Tous</option>
+        <option value="disponible">Disponible</option>
+        <option value="indisponible">Indisponible</option>
+    </select>
+    <!-- Filtrer par type de vélo -->
+    <label for="type">Type de vélo :</label>
+    <select id="type">
+        <option value="tous">Tous</option>
+        <option value="mecanique">Mécanique</option>
+        <option value="electrique">Électrique</option>
+    </select>
+</div>
+<script>
+    // Créer une carte Leaflet centrée sur une position spécifique
+    var carte = L.map('map').setView([48.8566, 2.3522], 12);
+
+    // Ajouter une couche de tuiles OpenStreetMap à la carte
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(carte);
+
+    // Fonction pour mettre à jour les informations sur la carte
+    function mettreAJourCarte() {
+        const cleApi = "e0a1bf2c844edb9084efc764c089dd748676cc14"; 
+        const disponibiliteSelectionnee = document.getElementById('disponibilite').value;
+        const typeSelectionne = document.getElementById('type').value;
+
+        fetch(`https://api.jcdecaux.com/vls/v3/stations?apiKey=${cleApi}`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(station => {
+                    // Filtrer les stations en fonction de la disponibilité et du type de vélo
+                    if ((disponibiliteSelectionnee === 'tous' || (disponibiliteSelectionnee === 'disponible' && station.mainStands.availabilities.bikes > 0) || (disponibiliteSelectionnee === 'indisponible' && station.mainStands.availabilities.bikes === 0)) &&
+                        (typeSelectionne === 'tous' || (typeSelectionne === 'mecanique' && station.mainStands.availabilities.mechanical > 0) || (typeSelectionne === 'electrique' && station.mainStands.availabilities.electric > 0))) {
+                        let marqueurExistant = marqueurs.find(marqueur => marqueur.options.title === station.nom);
+                        if (marqueurExistant) {
+                            marqueurExistant.setPopupContent(`<b>${station.nom}</b><br>Nombre de vélos disponibles : ${station.mainStands.availabilities.bikes}`);
+                        } else {
+                            L.marker([station.position.latitude, station.position.longitude])
+                                .addTo(carte)
+                                .bindPopup(`<b>${station.nom}</b><br>Nombre de vélos disponibles : ${station.mainStands.availabilities.bikes}`);
+                        }
+                    } else {
+                        // Retirer le marqueur si la station ne correspond pas aux critères de filtrage
+                        let marqueurExistant = marqueurs.find(marqueur => marqueur.options.title === station.nom);
+                        if (marqueurExistant) {
+                            carte.removeLayer(marqueurExistant);
+                        }
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Erreur lors de la récupération des données :', error);
+            });
+    }
+
+    // Mettre à jour les informations sur la carte lorsque les filtres changent
+    document.getElementById('disponibilite').addEventListener('change', mettreAJourCarte);
+    document.getElementById('type').addEventListener('change', mettreAJourCarte);
+
+    // Mettre à jour les informations sur la carte au chargement de la page
+    mettreAJourCarte();
+
+    // Créer une collection de marqueurs
+    var marqueurs = [];
+
+    // Mettre à jour les marqueurs sur la carte
+    function mettreAJourMarqueurs(data) {
+        marqueurs.forEach(marqueur => {
+            carte.removeLayer(marqueur);
+        });
+        data.forEach(station => {
+            var popupContent = `<b>${station.nom}</b><br>Nombre de vélos disponibles : ${station.mainStands.availabilities.bikes}`;
+            var marqueur = L.marker([station.position.latitude, station.position.longitude], { title: station.nom }).bindPopup(popupContent);
+            marqueurs.push(marqueur);
+            carte.addLayer(marqueur);
+        });
+    }
+</script>
+</body>
+</html>
+
+
+
+
+
